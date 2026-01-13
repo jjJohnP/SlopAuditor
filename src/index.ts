@@ -421,7 +421,8 @@ async function main(): Promise<void> {
         }
 
         // Include raw scan results in response
-        return {
+        const scanId = `local-scan-${Date.now()}`;
+        const fullResult = {
           ...auditResult,
           scan_details: {
             path: scanResult.path,
@@ -447,6 +448,24 @@ async function main(): Promise<void> {
             discovered_modules: scanResult.discoveredModules
           }
         };
+
+        // Store scan result to memory for history browsing
+        try {
+          await busClient.publishToMemory({
+            key: `audit:${scanId}:${Date.now()}`,
+            value: fullResult,
+            metadata: {
+              type: 'local-scan',
+              path: scanResult.path,
+              timestamp: new Date().toISOString()
+            }
+          });
+          console.log(`[SLOP] Scan result stored: ${scanId}`);
+        } catch (storeErr) {
+          console.error('[SLOP] Failed to store scan result:', storeErr);
+        }
+
+        return fullResult;
       } catch (err) {
         console.error('[SLOP] Local scan error:', err);
         return {

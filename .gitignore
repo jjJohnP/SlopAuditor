@@ -24,3 +24,7 @@ Thumbs.db
 
 # Test coverage
 coverage/
+
+# Test repos (cloned for scanning)
+test-repos/
+*-results.json

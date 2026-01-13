@@ -566,6 +566,22 @@
 
   <!-- Right Panel -->
   <div id="right-panel" class="ui-layer">
+    <!-- Audit History Panel -->
+    <div class="panel">
+      <div class="panel-title">Audit History <span id="auditHistoryCount" style="color: #888; font-size: 10px;">(0)</span></div>
+      <div id="auditHistoryList" style="max-height: 200px; overflow-y: auto;">
+        <p style="color: #666; font-size: 11px;">Loading audits...</p>
+      </div>
+      <button class="btn secondary" style="margin-top: 10px; font-size: 10px;" onclick="refreshAuditHistory()">Refresh History</button>
+    </div>
+
+    <!-- Selected Audit Details -->
+    <div class="panel" id="selectedAuditPanel" style="display: none;">
+      <div class="panel-title">Selected Audit</div>
+      <div id="selectedAuditInfo" style="font-size: 11px; margin-bottom: 10px;"></div>
+      <button class="btn secondary" style="font-size: 10px;" onclick="clearSelectedAudit()">Clear Selection</button>
+    </div>
+
     <div class="panel">
       <div class="panel-title">Security Findings</div>
       <div id="findingsList">
@@ -1328,6 +1344,136 @@
       }
 
       showLoading(false);
+    }
+
+    // ========== AUDIT HISTORY ==========
+    let auditHistoryCache = [];
+    let selectedAuditKey = null;
+
+    async function refreshAuditHistory() {
+      try {
+        const memRes = await fetch(`${SLOP_URL}/memory`);
+        const memData = await memRes.json();
+        auditHistoryCache = memData.keys || [];
+
+        document.getElementById('auditHistoryCount').textContent = `(${auditHistoryCache.length})`;
+
+        const listEl = document.getElementById('auditHistoryList');
+        if (auditHistoryCache.length === 0) {
+          listEl.innerHTML = '<p style="color: #666; font-size: 11px;">No audits yet.</p>';
+          return;
+        }
+
+        // Fetch details for each audit
+        const auditDetails = await Promise.all(
+          auditHistoryCache.slice(-20).reverse().map(async (key) => {
+            try {
+              const res = await fetch(`${SLOP_URL}/memory?key=${encodeURIComponent(key)}`);
+              const data = await res.json();
+              return { key, value: data.value };
+            } catch {
+              return { key, value: null };
+            }
+          })
+        );
+
+        listEl.innerHTML = auditDetails.map(({ key, value }) => {
+          const id = key.split(':')[1] || key;
+          const shortId = id.length > 20 ? id.substring(0, 20) + '...' : id;
+          const state = value?.agent_state || 'unknown';
+          const eventCount = value?.events?.length || 0;
+          const scanDetails = value?.scan_details;
+
+          let stateColor = '#888';
+          if (state === 'blocked') stateColor = '#ff0044';
+          else if (state === 'escalated') stateColor = '#ff4400';
+          else if (state === 'conflict') stateColor = '#ffaa00';
+          else if (state === 'idle') stateColor = '#00ff88';
+
+          let extraInfo = '';
+          if (scanDetails) {
+            extraInfo = `<div style="font-size: 9px; color: #666; margin-top: 2px;">
+              Secrets: ${scanDetails.secrets_found || 0} | Vulns: ${scanDetails.package_vulns || 0}
+            </div>`;
+          }
+
+          const isSelected = key === selectedAuditKey ? 'background: rgba(0,255,136,0.2);' : '';
+
+          return `
+            <div class="audit-history-item" onclick="selectAudit('${key}')" style="
+              padding: 8px;
+              margin: 4px 0;
+              border-left: 3px solid ${stateColor};
+              background: rgba(0,0,0,0.3);
+              cursor: pointer;
+              ${isSelected}
+            ">
+              <div style="font-size: 11px; font-weight: bold;">${shortId}</div>
+              <div style="font-size: 10px; color: ${stateColor}; text-transform: uppercase;">${state} (${eventCount} events)</div>
+              ${extraInfo}
+            </div>
+          `;
+        }).join('');
+
+      } catch (err) {
+        document.getElementById('auditHistoryList').innerHTML =
+          `<p style="color: #ff4444; font-size: 11px;">Error loading audits: ${err.message}</p>`;
+      }
+    }
+
+    async function selectAudit(key) {
+      selectedAuditKey = key;
+      showLoading(true);
+
+      try {
+        const res = await fetch(`${SLOP_URL}/memory?key=${encodeURIComponent(key)}`);
+        const data = await res.json();
+
+        if (data.value) {
+          // Update the main display with this audit
+          updateAuditorState(data.value.agent_state);
+          updateFindings(data.value.events);
+
+          // Show selected audit panel
+          const panel = document.getElementById('selectedAuditPanel');
+          panel.style.display = 'block';
+
+          const id = key.split(':')[1] || key;
+          const scanDetails = data.value.scan_details;
+          let info = `<div><strong>ID:</strong> ${id}</div>`;
+          info += `<div><strong>State:</strong> ${data.value.agent_state}</div>`;
+          info += `<div><strong>Events:</strong> ${data.value.events?.length || 0}</div>`;
+
+          if (scanDetails) {
+            info += `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #00ff8844;">`;
+            info += `<div><strong>Path:</strong> ${scanDetails.path || 'N/A'}</div>`;
+            info += `<div><strong>Secrets:</strong> ${scanDetails.secrets_found || 0}</div>`;
+            info += `<div><strong>Vulns:</strong> ${scanDetails.package_vulns || 0}</div>`;
+            info += `<div><strong>SAST:</strong> ${scanDetails.sast_findings || 0}</div>`;
+            if (scanDetails.tools_used) {
+              info += `<div><strong>Tools:</strong> ${scanDetails.tools_used.join(', ')}</div>`;
+            }
+            if (scanDetails.git_info) {
+              info += `<div><strong>Branch:</strong> ${scanDetails.git_info.branch || 'N/A'}</div>`;
+            }
+            info += `</div>`;
+          }
+
+          document.getElementById('selectedAuditInfo').innerHTML = info;
+          showToast(`Loaded audit: ${id}`);
+        }
+      } catch (err) {
+        showToast('Failed to load audit: ' + err.message, true);
+      }
+
+      showLoading(false);
+      refreshAuditHistory(); // Refresh to update selection highlight
+    }
+
+    function clearSelectedAudit() {
+      selectedAuditKey = null;
+      document.getElementById('selectedAuditPanel').style.display = 'none';
+      refreshAuditHistory();
     }
 
     // ========== UI HELPERS ==========
@@ -2298,11 +2444,16 @@
     window.removeSelectedModule = removeSelectedModule;
     window.saveModuleChanges = saveModuleChanges;
     window.closeModal = closeModal;
+    window.refreshAuditHistory = refreshAuditHistory;
+    window.selectAudit = selectAudit;
+    window.clearSelectedAudit = clearSelectedAudit;
 
     initScene();
     animate();
     pollSlop();
+    refreshAuditHistory();
     setInterval(pollSlop, POLL_INTERVAL);
+    setInterval(refreshAuditHistory, POLL_INTERVAL * 2); // Refresh history less frequently
 
     // Add click handler for module selection
     window.addEventListener('click', onMouseClick);
