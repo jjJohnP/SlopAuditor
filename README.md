@@ -17,37 +17,110 @@ A comprehensive security audit pipeline built on the SLOP (Simple Lightweight Or
 - **Docker Ready** - Full containerization with security tools included
 - **CI/CD Pipeline** - GitHub Actions for automated testing and publishing
 
-## Quick Start
+## Table of Contents
 
-### Install via npm
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [CLI Commands](#cli-commands)
+- [API Endpoints](#api-endpoints)
+- [Usage Examples](#usage-examples)
+- [Security Scanning Tools](#security-scanning-tools)
+- [AWS Scanning](#aws-scanning)
+- [Docker Deployment](#docker-deployment)
+- [Environment Variables](#environment-variables)
+- [3D Visualizer Features](#3d-visualizer-features)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Installation
+
+### Prerequisites
+
+- **Node.js** 18.x or higher
+- **npm** 8.x or higher
+- **Git** (for cloning the repository)
+
+### Option 1: Install via npm (Recommended)
 
 ```bash
 npm install -g @slop/auditor
 ```
 
-### Or run locally
+After installation, you can use the `slop-auditor` command directly:
 
 ```bash
-# Clone and install
-git clone https://github.com/jjJohnP/SlopAuditor.git
-cd SlopAuditor
-npm install
-
-# Build and start
-npm run build
-npm start
-
-# In another terminal, start the 3D visualizer
-npm run visualizer
-
-# Open http://127.0.0.1:8080 in your browser
+slop-auditor --help
 ```
 
-### Or run with Docker
+### Option 2: Clone from GitHub
 
 ```bash
+# Step 1: Clone the repository
+git clone https://github.com/jjJohnP/SlopAuditor.git
+
+# Step 2: Navigate to the project directory
+cd SlopAuditor
+
+# Step 3: Install dependencies
+npm install
+
+# Step 4: Build the TypeScript code
+npm run build
+
+# Step 5: Verify installation
+npm start -- --help
+```
+
+### Option 3: Run with Docker
+
+```bash
+# Using Docker Compose (recommended)
 docker-compose up -d
-# Access visualizer at http://localhost:8080
+
+# Or build and run manually
+docker build -t slop-auditor .
+docker run -p 3000:3000 -p 3001:3001 -p 8080:8080 slop-auditor
+```
+
+## Quick Start
+
+### Running the Full Stack
+
+**Terminal 1 - Start the SLOP API Server:**
+```bash
+npm start
+# Server starts on http://127.0.0.1:3000
+# WebSocket on ws://127.0.0.1:3001
+```
+
+**Terminal 2 - Start the 3D Visualizer:**
+```bash
+npm run visualizer
+# Visualizer starts on http://127.0.0.1:8080
+```
+
+**Open your browser:**
+Navigate to http://127.0.0.1:8080 to access the 3D control plane.
+
+### Quick Test
+
+Run a scan on a local directory:
+```bash
+# Via CLI
+slop-auditor scan ./my-project
+
+# Or via API
+curl -X POST http://127.0.0.1:3000/tools \
+  -H "Content-Type: application/json" \
+  -d '{"tool":"scan-local","arguments":{"targetPath":"./my-project"}}'
+```
+
+### One-Command Development Mode
+
+```bash
+# Start both server and visualizer together
+npm run full
 ```
 
 ## CLI Commands
@@ -310,12 +383,57 @@ docker push yourusername/slop-auditor
 4. Push to the branch (`git push origin feature/amazing`)
 5. Open a Pull Request
 
+## Troubleshooting
+
+### Common Issues
+
+**Port already in use:**
+```bash
+# Check what's using port 3000
+netstat -ano | findstr :3000  # Windows
+lsof -i :3000                 # macOS/Linux
+
+# Use a different port
+SLOP_PORT=3001 npm start
+```
+
+**Security tools not found:**
+The scanner will fall back to regex patterns if tools aren't installed. For best results, install:
+```bash
+# Windows
+winget install gitleaks
+winget install trivy
+
+# macOS
+brew install gitleaks
+brew install trivy
+
+# Linux
+# See respective tool documentation for installation
+```
+
+**WebSocket connection failed:**
+Ensure the WebSocket server is running on port 3001. Check browser console for errors.
+
+**Database errors:**
+The SQLite database is stored in `.slop-auditor/auditor.db`. To reset:
+```bash
+rm -rf .slop-auditor/
+npm start  # Will recreate the database
+```
+
+### Getting Help
+
+- Check the [Issue Tracker](https://github.com/jjJohnP/SlopAuditor/issues) for known issues
+- Open a new issue with your error message and environment details
+
 ## License
 
-MIT
+MIT - See [LICENSE](LICENSE) for details.
 
 ## Links
 
 - [GitHub Repository](https://github.com/jjJohnP/SlopAuditor)
 - [npm Package](https://www.npmjs.com/package/@slop/auditor)
 - [Issue Tracker](https://github.com/jjJohnP/SlopAuditor/issues)
+- [Changelog](CHANGELOG.md)
