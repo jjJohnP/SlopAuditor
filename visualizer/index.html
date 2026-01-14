@@ -1439,23 +1439,24 @@
         if (!connected) {
           connected = true;
           document.getElementById('statusDot').classList.remove('error');
-          document.getElementById('statusText').textContent = 'Connected';
+          document.getElementById('statusText').textContent = wsConnected ? 'Connected (WS)' : 'Connected';
         }
 
-        const memRes = await fetch(`${SLOP_URL}/memory`);
-        const memData = await memRes.json();
-        document.getElementById('auditCount').textContent = `${memData.keys.length} Audits`;
+        // Use the real /stats endpoint for database-backed statistics
+        const statsRes = await fetch(`${SLOP_URL}/stats`);
+        const stats = await statsRes.json();
 
-        if (memData.keys.length > 0) {
-          const latestKey = memData.keys[memData.keys.length - 1];
-          const auditRes = await fetch(`${SLOP_URL}/memory?key=${encodeURIComponent(latestKey)}`);
-          const auditData = await auditRes.json();
+        document.getElementById('auditCount').textContent = `${stats.totalAudits || 0} Audits`;
 
-          if (auditData.value) {
-            updateAuditorState(auditData.value.agent_state);
-            updateFindings(auditData.value.events);
-          }
+        // Update severity counts from real data (only if no audit is selected)
+        if (!selectedAuditId) {
+          const sev = stats.severityCounts || { critical: 0, high: 0, medium: 0, low: 0 };
+          document.getElementById('statCritical').textContent = sev.critical;
+          document.getElementById('statHigh').textContent = sev.high;
+          document.getElementById('statMedium').textContent = sev.medium;
+          document.getElementById('statLow').textContent = sev.low;
         }
+
       } catch (err) {
         if (connected) {
           connected = false;
@@ -1588,59 +1589,40 @@
 
     // ========== AUDIT HISTORY ==========
     let auditHistoryCache = [];
-    let selectedAuditKey = null;
+    let selectedAuditId = null;
 
     async function refreshAuditHistory() {
       try {
-        const memRes = await fetch(`${SLOP_URL}/memory`);
-        const memData = await memRes.json();
-        auditHistoryCache = memData.keys || [];
+        // Use the new /audits database endpoint for real data
+        const res = await fetch(`${SLOP_URL}/audits?limit=20`);
+        const data = await res.json();
+        auditHistoryCache = data.audits || [];
 
-        document.getElementById('auditHistoryCount').textContent = `(${auditHistoryCache.length})`;
+        document.getElementById('auditHistoryCount').textContent = `(${data.total || 0})`;
 
         const listEl = document.getElementById('auditHistoryList');
         if (auditHistoryCache.length === 0) {
-          listEl.innerHTML = '<p style="color: #666; font-size: 11px;">No audits yet.</p>';
+          listEl.innerHTML = '<p style="color: #666; font-size: 11px;">No audits yet. Run a scan to see results.</p>';
           return;
         }
 
-        // Fetch details for each audit
-        const auditDetails = await Promise.all(
-          auditHistoryCache.slice(-20).reverse().map(async (key) => {
-            try {
-              const res = await fetch(`${SLOP_URL}/memory?key=${encodeURIComponent(key)}`);
-              const data = await res.json();
-              return { key, value: data.value };
-            } catch {
-              return { key, value: null };
-            }
-          })
-        );
+        listEl.innerHTML = auditHistoryCache.map((audit) => {
+          const shortId = audit.id.length > 25 ? audit.id.substring(0, 25) + '...' : audit.id;
+          const shortTarget = audit.target ? (audit.target.length > 30 ? '...' + audit.target.slice(-30) : audit.target) : 'Unknown';
+          const summary = audit.summary || { critical: 0, high: 0, medium: 0, low: 0 };
+          const totalFindings = summary.critical + summary.high + summary.medium + summary.low;
 
-        listEl.innerHTML = auditDetails.map(({ key, value }) => {
-          const id = key.split(':')[1] || key;
-          const shortId = id.length > 20 ? id.substring(0, 20) + '...' : id;
-          const state = value?.agent_state || 'unknown';
-          const eventCount = value?.events?.length || 0;
-          const scanDetails = value?.scan_details;
+          // Color based on severity
+          let stateColor = '#00ff88'; // green = safe
+          if (summary.critical > 0) stateColor = '#ff0044';
+          else if (summary.high > 0) stateColor = '#ff4400';
+          else if (summary.medium > 0) stateColor = '#ffaa00';
 
-          let stateColor = '#888';
-          if (state === 'blocked') stateColor = '#ff0044';
-          else if (state === 'escalated') stateColor = '#ff4400';
-          else if (state === 'conflict') stateColor = '#ffaa00';
-          else if (state === 'idle') stateColor = '#00ff88';
-
-          let extraInfo = '';
-          if (scanDetails) {
-            extraInfo = `<div style="font-size: 9px; color: #666; margin-top: 2px;">
-              Secrets: ${scanDetails.secrets_found || 0} | Vulns: ${scanDetails.package_vulns || 0}
-            </div>`;
-          }
-
-          const isSelected = key === selectedAuditKey ? 'background: rgba(0,255,136,0.2);' : '';
+          const timestamp = new Date(audit.timestamp).toLocaleString();
+          const isSelected = audit.id === selectedAuditId ? 'background: rgba(0,255,136,0.2);' : '';
 
           return `
-            <div class="audit-history-item" onclick="selectAudit('${key}')" style="
+            <div class="audit-history-item" onclick="selectAudit('${audit.id}')" style="
               padding: 8px;
               margin: 4px 0;
               border-left: 3px solid ${stateColor};
@@ -1648,61 +1630,95 @@
               cursor: pointer;
               ${isSelected}
             ">
-              <div style="font-size: 11px; font-weight: bold;">${shortId}</div>
-              <div style="font-size: 10px; color: ${stateColor}; text-transform: uppercase;">${state} (${eventCount} events)</div>
-              ${extraInfo}
+              <div style="font-size: 11px; font-weight: bold;">${audit.type.toUpperCase()} Scan</div>
+              <div style="font-size: 10px; color: #888; margin: 2px 0;">${shortTarget}</div>
+              <div style="font-size: 9px; color: ${stateColor};">
+                ${totalFindings > 0 ? `${totalFindings} findings (${summary.critical}C/${summary.high}H/${summary.medium}M/${summary.low}L)` : 'No issues found'}
+              </div>
+              <div style="font-size: 8px; color: #555; margin-top: 3px;">${timestamp}</div>
             </div>
           `;
         }).join('');
 
       } catch (err) {
+        console.error('Failed to load audit history:', err);
         document.getElementById('auditHistoryList').innerHTML =
-          `<p style="color: #ff4444; font-size: 11px;">Error loading audits: ${err.message}</p>`;
+          `<p style="color: #ff4444; font-size: 11px;">Error: ${err.message}</p>`;
       }
     }
 
-    async function selectAudit(key) {
-      selectedAuditKey = key;
+    async function selectAudit(auditId) {
+      selectedAuditId = auditId;
       showLoading(true);
 
       try {
-        const res = await fetch(`${SLOP_URL}/memory?key=${encodeURIComponent(key)}`);
-        const data = await res.json();
+        // Use the new /audits/:id endpoint for real database data
+        const res = await fetch(`${SLOP_URL}/audits/${encodeURIComponent(auditId)}`);
+        const audit = await res.json();
 
-        if (data.value) {
-          // Update the main display with this audit
-          updateAuditorState(data.value.agent_state);
-          updateFindings(data.value.events);
-
+        if (audit && !audit.error) {
           // Show selected audit panel
           const panel = document.getElementById('selectedAuditPanel');
           panel.style.display = 'block';
 
-          const id = key.split(':')[1] || key;
-          const scanDetails = data.value.scan_details;
-          let info = `<div><strong>ID:</strong> ${id}</div>`;
-          info += `<div><strong>State:</strong> ${data.value.agent_state}</div>`;
-          info += `<div><strong>Events:</strong> ${data.value.events?.length || 0}</div>`;
+          const summary = audit.summary || { critical: 0, high: 0, medium: 0, low: 0 };
+          const scanData = audit.data || {};
+          const totalFindings = summary.critical + summary.high + summary.medium + summary.low;
 
-          if (scanDetails) {
-            info += `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #00ff8844;">`;
-            info += `<div><strong>Path:</strong> ${scanDetails.path || 'N/A'}</div>`;
-            info += `<div><strong>Secrets:</strong> ${scanDetails.secrets_found || 0}</div>`;
-            info += `<div><strong>Vulns:</strong> ${scanDetails.package_vulns || 0}</div>`;
-            info += `<div><strong>SAST:</strong> ${scanDetails.sast_findings || 0}</div>`;
-            if (scanDetails.tools_used) {
-              info += `<div><strong>Tools:</strong> ${scanDetails.tools_used.join(', ')}</div>`;
-            }
-            if (scanDetails.git_info) {
-              info += `<div><strong>Branch:</strong> ${scanDetails.git_info.branch || 'N/A'}</div>`;
+          let info = `<div><strong>ID:</strong> ${audit.id}</div>`;
+          info += `<div><strong>Type:</strong> ${audit.type.toUpperCase()}</div>`;
+          info += `<div><strong>Target:</strong> ${audit.target}</div>`;
+          info += `<div><strong>Time:</strong> ${new Date(audit.timestamp).toLocaleString()}</div>`;
+
+          info += `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #00ff8844;">`;
+          info += `<div><strong>Findings:</strong> ${totalFindings}</div>`;
+          info += `<div style="font-size: 10px; color: #888;">
+            Critical: ${summary.critical} | High: ${summary.high} | Medium: ${summary.medium} | Low: ${summary.low}
+          </div>`;
+
+          if (scanData.secrets && scanData.secrets.length > 0) {
+            info += `<div style="margin-top: 5px;"><strong>Secrets Found:</strong> ${scanData.secrets.length}</div>`;
+          }
+          if (scanData.packages && scanData.packages.length > 0) {
+            info += `<div><strong>Vulnerable Packages:</strong> ${scanData.packages.length}</div>`;
+          }
+          if (scanData.sastFindings && scanData.sastFindings.length > 0) {
+            info += `<div><strong>SAST Issues:</strong> ${scanData.sastFindings.length}</div>`;
+          }
+          if (scanData.toolsUsed) {
+            info += `<div><strong>Tools:</strong> ${scanData.toolsUsed.join(', ')}</div>`;
+          }
+          info += `</div>`;
+
+          // Show detailed findings if any
+          if (scanData.secrets && scanData.secrets.length > 0) {
+            info += `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #ff004444;">`;
+            info += `<div style="color: #ff0044; font-weight: bold; margin-bottom: 5px;">SECRETS DETECTED:</div>`;
+            scanData.secrets.slice(0, 5).forEach(s => {
+              info += `<div style="font-size: 9px; color: #ff6666; margin: 2px 0;">
+                ${s.type}: ${s.file}:${s.line}
+              </div>`;
+            });
+            if (scanData.secrets.length > 5) {
+              info += `<div style="font-size: 9px; color: #888;">...and ${scanData.secrets.length - 5} more</div>`;
             }
             info += `</div>`;
           }
 
           document.getElementById('selectedAuditInfo').innerHTML = info;
-          showToast(`Loaded audit: ${id}`);
+
+          // Update stats bar with this audit's findings
+          document.getElementById('statCritical').textContent = summary.critical;
+          document.getElementById('statHigh').textContent = summary.high;
+          document.getElementById('statMedium').textContent = summary.medium;
+          document.getElementById('statLow').textContent = summary.low;
+
+          showToast(`Loaded audit: ${audit.type} scan`);
+        } else {
+          showToast('Audit not found', true);
         }
       } catch (err) {
+        console.error('Failed to load audit:', err);
         showToast('Failed to load audit: ' + err.message, true);
       }
 
@@ -1711,8 +1727,13 @@
     }
 
     function clearSelectedAudit() {
-      selectedAuditKey = null;
+      selectedAuditId = null;
       document.getElementById('selectedAuditPanel').style.display = 'none';
+      // Reset stats
+      document.getElementById('statCritical').textContent = '0';
+      document.getElementById('statHigh').textContent = '0';
+      document.getElementById('statMedium').textContent = '0';
+      document.getElementById('statLow').textContent = '0';
       refreshAuditHistory();
     }
 
