@@ -8,8 +8,9 @@ This file tracks the current state of the project for Claude to pick up where we
 
 ## Current Status: ACTIVE DEVELOPMENT
 
-**Last Updated:** January 2026
+**Last Updated:** January 13, 2026
 **Phase:** Integration & Enhancement
+**GitHub:** https://github.com/jjJohnP/SlopAuditor
 
 ---
 
@@ -82,6 +83,9 @@ slop-auditor/
 - [x] Stats bar (Critical/High/Medium/Low counts)
 - [x] Hover tooltips on 3D objects
 - [x] Real-time polling of SLOP server
+- [x] Audit History panel (browse past audits)
+- [x] Click-to-view audit details
+- [x] Selected audit info panel
 
 ### Integrations
 - [x] Webhook Server (GitHub, GitLab, Jenkins, custom)
@@ -99,14 +103,16 @@ slop-auditor/
 - [x] Clickable module selection in visualizer
 - [x] Module management (add/remove/enable/disable)
 - [x] Audit source selector (Demo/Local/Custom)
+- [x] Audit history browsing in visualizer
+- [x] Scan results stored to SLOP memory
 - [ ] Create example config file (slop.config.json)
 - [ ] AWS integration for cloud resource auditing
 - [ ] End-to-end testing with real GitHub webhook
+- [ ] Add persistent database (SQLite/file-based) for audit history
 
 ### Medium Priority
 - [ ] Add more scanner parsers (Grype, Clair, Checkov)
 - [ ] Add Slack/Discord notification integration
-- [ ] Add audit result caching/persistence
 - [ ] Add authentication to SLOP server
 - [ ] Code simplifier/linter stage
 
@@ -316,14 +322,34 @@ cd /c/Users/Justin/Documents/Projects/AI_Test/apps/slop-auditor && npm run build
 
 ## Notes for Next Session
 
-- **COMPLETED**: Clickable modules in 3D visualizer (select, highlight, remove)
-- **COMPLETED**: Module management UI (add new modules, enable/disable)
-- **COMPLETED**: Local system scanner (scan current machine for secrets, vulns)
-- **COMPLETED**: Audit source selector (Demo presets / Local scan / Custom path)
-- User wants AWS integration for cloud resource auditing
-- User wants to connect more external systems (beyond GitHub/GitLab)
-- Consider adding real-time WebSocket updates instead of polling
-- Future: Code simplifier plugin for codebase cleanup
+### Session Summary (Jan 13, 2026)
+- **COMPLETED**: GitHub repo created at https://github.com/jjJohnP/SlopAuditor
+- **COMPLETED**: Audit History panel added to visualizer
+- **COMPLETED**: Click-to-view audit details functionality
+- **COMPLETED**: Scan results now stored to SLOP memory
+- **COMPLETED**: Tested 10 open source repos (express, lodash, axios, etc.)
+- **VERIFIED**: All security tools working (gitleaks 8.30.0, trivy 0.68.2, semgrep 1.147.0)
+
+### Suggested Next Steps
+1. Add persistent database (SQLite) so audits survive server restarts
+2. AWS integration for cloud resource auditing
+3. Create example config file (slop.config.json)
+4. Add Slack/Discord notifications
+5. Real-time WebSocket updates instead of polling
+
+### Test Repos Available
+The following repos are cloned in `test-repos/` for testing:
+- express, lodash, axios, chalk, dotenv
+- jsonwebtoken, bcrypt, mongoose, socket.io, passport
+
+### How to Resume
+```bash
+cd C:\Users\Justin\Documents\Projects\AI_Test\apps\slop-auditor
+npm run build
+npm start                    # Terminal 1: SLOP server on :3000
+npm run visualizer           # Terminal 2: Visualizer on :8080
+# Open http://127.0.0.1:8080
+```
 
 ---
 
