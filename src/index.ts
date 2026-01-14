@@ -6,8 +6,11 @@ import { SlopClient } from './slop/client.js';
 import { AuditorPipeline } from './auditor/pipeline.js';
 import { SchemaValidator, ValidationError } from './auditor/validator.js';
 import { LocalScanner } from './integrations/local-scanner.js';
+import type { LocalScanResult, SecretFinding } from './integrations/local-scanner.js';
+import { getWebSocketServer, type AuditorWebSocket } from './websocket/index.js';
 
 const PORT = parseInt(process.env.SLOP_PORT ?? '3000', 10);
+const WS_PORT = parseInt(process.env.WS_PORT ?? '3001', 10);
 const SLOP_BUS_URL = process.env.SLOP_BUS_URL;
 
 // Secret patterns for remote scanning - stricter patterns to avoid false positives
@@ -384,6 +387,16 @@ async function main(): Promise<void> {
         });
 
         console.log(`[SLOP] Starting local scan of: ${targetPath}`);
+
+        // Notify WebSocket clients that scan is starting
+        const wsScanId = `scan-${Date.now()}`;
+        const ws = getWebSocketServer(WS_PORT);
+        ws.notifyAuditStarted({
+          auditId: wsScanId,
+          type: 'code',
+          target: targetPath
+        });
+
         const scanResult = await scanner.scan();
         console.log(`[SLOP] Scan complete. Found ${scanResult.secrets.length} secrets, ${scanResult.packages.length} package issues, ${scanResult.sastFindings.length} SAST findings`);
 
@@ -460,9 +473,53 @@ async function main(): Promise<void> {
               timestamp: new Date().toISOString()
             }
           });
-          console.log(`[SLOP] Scan result stored: ${scanId}`);
+          console.log(`[SLOP] Scan result stored to memory: ${scanId}`);
         } catch (storeErr) {
-          console.error('[SLOP] Failed to store scan result:', storeErr);
+          console.error('[SLOP] Failed to store scan result to memory:', storeErr);
+        }
+
+        // Store to SQLite database for persistent history
+        let auditId: string | undefined;
+        try {
+          const db = server.getDatabase();
+          auditId = db.saveAudit('code', scanResult.path, scanResult as LocalScanResult);
+          console.log(`[SLOP] Scan result saved to database: ${auditId}`);
+        } catch (dbErr) {
+          console.error('[SLOP] Failed to save to database:', dbErr);
+        }
+
+        // Send notifications if enabled
+        if (auditId) {
+          try {
+            const notifyService = server.getNotificationService();
+            const summary = {
+              critical: scanResult.secrets?.filter((s: SecretFinding) => s.severity === 'critical').length || 0,
+              high: scanResult.secrets?.filter((s: SecretFinding) => s.severity === 'high').length || 0,
+              medium: (scanResult.packages?.length || 0) + (scanResult.sastFindings?.length || 0),
+              low: scanResult.envFiles?.length || 0
+            };
+            const result = await notifyService.notify({
+              title: `Security Scan Complete`,
+              message: `Scanned \`${scanResult.path}\``,
+              severity: summary.critical > 0 ? 'critical' : summary.high > 0 ? 'high' : 'low',
+              auditId,
+              target: scanResult.path,
+              findings: summary
+            });
+            if (result.sent.length > 0) {
+              console.log(`[SLOP] Notifications sent: ${result.sent.join(', ')}`);
+            }
+
+            // Notify WebSocket clients that scan is complete
+            ws.notifyAuditCompleted({
+              auditId,
+              type: 'code',
+              target: scanResult.path,
+              summary
+            });
+          } catch (notifyErr) {
+            console.error('[SLOP] Notification error:', notifyErr);
+          }
         }
 
         return fullResult;
@@ -491,10 +548,15 @@ async function main(): Promise<void> {
     }
   });
 
-  // Start server
+  // Start HTTP server
   await server.start();
   console.log(`[SLOP] Auditor listening on http://127.0.0.1:${PORT}`);
-  console.log('[SLOP] Endpoints: /info, /tools, /memory');
+  console.log('[SLOP] Endpoints: /info, /tools, /memory, /settings, /audits, /stats, /notifications');
+
+  // Start WebSocket server for real-time updates
+  const wsServer = getWebSocketServer(WS_PORT);
+  await wsServer.start();
+  console.log(`[SLOP] WebSocket server on ws://127.0.0.1:${WS_PORT}`);
 
   // Connect client to self for memory storage
   if (!SLOP_BUS_URL) {
@@ -559,3 +621,19 @@ export { ConfigLoader, configLoader } from './integrations/config.js';
 export type { AuditorConfig, ModuleConfig, IntegrationConfig } from './integrations/config.js';
 export { LocalScanner, quickLocalScan } from './integrations/local-scanner.js';
 export type { LocalScanConfig, LocalScanResult, SecretFinding, PackageFinding, SastFinding, DiscoveredService, DiscoveredModule } from './integrations/local-scanner.js';
+
+// AWS Scanner exports
+export { AWSScanner, scanAWS } from './integrations/aws-scanner.js';
+export type { AWSScanConfig, AWSScanResult, AWSFinding } from './integrations/aws-scanner.js';
+
+// Database exports
+export { AuditorDatabase, getDatabase, closeDatabase } from './database/index.js';
+export type { AuditRecord, SettingsRecord, NotificationRecord } from './database/index.js';
+
+// Notification exports
+export { NotificationService, createNotificationFromAudit } from './integrations/notifications.js';
+export type { NotificationConfig, NotificationPayload } from './integrations/notifications.js';
+
+// WebSocket exports
+export { AuditorWebSocket, getWebSocketServer, closeWebSocketServer } from './websocket/index.js';
+export type { WSMessage, AuditStartedPayload, AuditCompletedPayload, FindingPayload } from './websocket/index.js';

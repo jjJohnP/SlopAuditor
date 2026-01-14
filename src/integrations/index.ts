@@ -8,3 +8,5 @@ export { ScannerParser, SnykParser, TrivyParser, SemgrepParser } from './scanner
 export { ConfigLoader, AuditorConfig } from './config.js';
 export { LocalScanner, quickLocalScan } from './local-scanner.js';
 export type { LocalScanConfig, LocalScanResult, SecretFinding, PackageFinding, SastFinding, GitInfo, EnvFileFinding, SystemInfo, DiscoveredService, DiscoveredModule } from './local-scanner.js';
+export { NotificationService, createNotificationFromAudit } from './notifications.js';
+export type { NotificationConfig, NotificationPayload } from './notifications.js';

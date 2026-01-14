@@ -1,17 +1,40 @@
 # SLOP Auditor
 
-A security audit pipeline built on the SLOP (Simple Lightweight Orchestration Protocol) framework. Provides automated security analysis for code changes with a 3D visualization control plane.
+[![npm version](https://badge.fury.io/js/@slop%2Fauditor.svg)](https://www.npmjs.com/package/@slop/auditor)
+[![Docker](https://img.shields.io/badge/docker-ready-blue)](https://hub.docker.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A comprehensive security audit pipeline built on the SLOP (Simple Lightweight Orchestration Protocol) framework. Provides automated security analysis for code repositories and AWS infrastructure with a 3D visualization control plane.
+
+## Features
+
+- **Multi-Scanner Integration** - Gitleaks, Trivy, Semgrep, npm audit
+- **AWS Infrastructure Scanning** - IAM, S3, EC2, Lambda, RDS security checks
+- **Real-time WebSocket Updates** - Instant notifications when scans complete
+- **3D Visualization** - Interactive Three.js control plane
+- **Notifications** - Slack, Discord, and custom webhook integrations
+- **Persistent Storage** - SQLite database for audit history
+- **Docker Ready** - Full containerization with security tools included
+- **CI/CD Pipeline** - GitHub Actions for automated testing and publishing
 
 ## Quick Start
 
+### Install via npm
+
 ```bash
-# Install dependencies
+npm install -g @slop/auditor
+```
+
+### Or run locally
+
+```bash
+# Clone and install
+git clone https://github.com/jjJohnP/SlopAuditor.git
+cd SlopAuditor
 npm install
 
-# Build the project
+# Build and start
 npm run build
-
-# Start the SLOP server
 npm start
 
 # In another terminal, start the 3D visualizer
@@ -20,108 +43,144 @@ npm run visualizer
 # Open http://127.0.0.1:8080 in your browser
 ```
 
+### Or run with Docker
+
+```bash
+docker-compose up -d
+# Access visualizer at http://localhost:8080
+```
+
+## CLI Commands
+
+```bash
+# Initialize configuration
+slop-auditor init [path]
+
+# Scan local directory
+slop-auditor scan <path>
+
+# Scan AWS infrastructure
+slop-auditor aws
+slop-auditor aws --region us-west-2 -s iam,s3,ec2
+
+# Start SLOP server
+slop-auditor serve
+
+# Start 3D visualizer
+slop-auditor visualizer
+```
+
 ## Architecture
 
 ```
 slop-auditor/
 ├── src/
-│   ├── index.ts           # Main entry point - starts SLOP server
-│   ├── cli.ts             # CLI tool for interacting with the auditor
-│   ├── serve-visualizer.ts # Serves the 3D web UI
-│   ├── client/            # High-level client SDK
-│   ├── pipeline/          # Extensible analysis pipeline
-│   ├── auditor/           # Core audit logic
-│   ├── schemas/           # JSON schema validation
-│   ├── slop/              # SLOP server/client implementation
-│   ├── types/             # TypeScript type definitions
-│   └── visualizer/        # Console-based visualization
-├── visualizer/            # 3D Web UI (Three.js)
-└── examples/              # Sample inputs and usage
+│   ├── index.ts              # Main entry + SLOP server
+│   ├── cli.ts                # CLI commands
+│   ├── serve-visualizer.ts   # 3D web UI server
+│   ├── auditor/              # Core audit logic
+│   ├── client/               # High-level SDK
+│   ├── database/             # SQLite persistence
+│   ├── integrations/         # External connectors
+│   │   ├── aws-scanner.ts    # AWS security scanning
+│   │   ├── local-scanner.ts  # Local repo scanning
+│   │   ├── notifications.ts  # Slack/Discord/webhooks
+│   │   └── ...
+│   ├── websocket/            # Real-time updates
+│   └── slop/                 # SLOP protocol impl
+├── visualizer/               # 3D Web UI (Three.js)
+├── Dockerfile                # Docker build
+├── docker-compose.yml        # Docker Compose
+└── .github/workflows/        # CI/CD pipeline
 ```
 
-## Usage
+## API Endpoints
 
-### 1. Start the Server
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/info` | GET | Server information |
+| `/tools` | GET | List available tools |
+| `/tools` | POST | Execute a tool (scan, audit) |
+| `/memory` | GET | List/retrieve from memory |
+| `/memory` | POST | Store data in memory |
+| `/settings` | GET | Get all settings |
+| `/settings` | POST | Save settings |
+| `/audits` | GET | List audit history |
+| `/audits/:id` | GET | Get audit details |
+| `/audits/:id` | DELETE | Delete an audit |
+| `/stats` | GET | Audit statistics |
+| `/notifications` | GET | Notification history |
+| `/notifications/test` | POST | Test notification channel |
+| `/notifications/send` | POST | Send notification |
 
-```bash
-# Default port 3000
-npm start
+### WebSocket
 
-# Custom port
-SLOP_PORT=4000 npm start
+Connect to `ws://127.0.0.1:3001` for real-time updates:
+
+```javascript
+const ws = new WebSocket('ws://127.0.0.1:3001');
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  // msg.type: 'audit_started', 'audit_completed', 'finding', 'settings_changed'
+};
 ```
 
-### 2. Start the 3D Visualizer
+## Usage Examples
+
+### Scan Local Directory
 
 ```bash
-# Default port 8080
-npm run visualizer
+# Via CLI
+slop-auditor scan ./my-project
 
-# Custom port
-VISUALIZER_PORT=9000 npm run visualizer
-```
-
-### 3. Run Audits via CLI
-
-```bash
-# Show server status
-npx tsx src/cli.ts status
-
-# Run demo audit
-npx tsx src/cli.ts audit
-
-# Audit from file
-npx tsx src/cli.ts audit examples/test-payload.json
-
-# View audit logs
-npx tsx src/cli.ts logs
-
-# Watch for new audits
-npx tsx src/cli.ts watch
-```
-
-### 4. Run Audits via HTTP API
-
-```bash
-# Run an audit
+# Via API
 curl -X POST http://127.0.0.1:3000/tools \
   -H "Content-Type: application/json" \
   -d '{
-    "tool": "audit",
+    "tool": "scan-local",
     "arguments": {
-      "change_event": {
-        "id": "pr-123",
-        "type": "pull_request",
-        "environment": "staging",
-        "repo": "acme/webapp",
-        "commit": "abc123...",
-        "files_changed": ["src/auth/login.ts"],
-        "diff": "+const API_KEY = \"secret\";"
-      },
-      "evidence_bundle": {
-        "vuln_scan": "critical: 1\nhigh: 2"
-      },
-      "policy_context": {
-        "critical_assets": ["auth", "billing"],
-        "risk_tolerance": "low"
-      }
+      "targetPath": "/path/to/project"
     }
   }'
-
-# Get server info
-curl http://127.0.0.1:3000/info
-
-# List audit logs
-curl http://127.0.0.1:3000/memory
-
-# Get specific audit
-curl "http://127.0.0.1:3000/memory?key=audit:pr-123:1234567890"
 ```
 
-### 5. Use the Client SDK
+### Scan AWS Infrastructure
+
+```bash
+# Via CLI
+slop-auditor aws --region us-east-1 -s iam,s3,ec2
+
+# Via API (configure in Settings UI first)
+curl -X POST http://127.0.0.1:3000/tools \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool": "scan-aws",
+    "arguments": {
+      "region": "us-east-1",
+      "services": ["iam", "s3", "ec2"]
+    }
+  }'
+```
+
+### Configure Notifications
+
+Use the Settings panel in the 3D visualizer or via API:
+
+```bash
+curl -X POST http://127.0.0.1:3000/settings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "settings": {
+      "notifications.slack.enabled": "true",
+      "notifications.slack.webhookUrl": "https://hooks.slack.com/services/..."
+    }
+  }'
+```
+
+### Use the Client SDK
 
 ```typescript
-import { AuditClient, createPullRequestEvent } from 'slop-auditor';
+import { AuditClient, createPullRequestEvent } from '@slop/auditor';
 
 const client = new AuditClient({
   serverUrl: 'http://127.0.0.1:3000'
@@ -139,9 +198,7 @@ const result = await client.audit({
     '+const API_KEY = "secret";',
     'staging'
   ),
-  evidenceBundle: {
-    vuln_scan: 'critical: 1\nhigh: 2'
-  },
+  evidenceBundle: { vuln_scan: 'critical: 1' },
   policyContext: {
     critical_assets: ['auth', 'billing'],
     risk_tolerance: 'low'
@@ -149,170 +206,116 @@ const result = await client.audit({
 });
 
 console.log(result.output?.agent_state); // 'blocked', 'escalated', etc.
-
-// Watch for audits
-for await (const audit of client.watchAudits()) {
-  console.log('New audit:', audit.agent_state);
-}
 ```
 
-### 6. Custom Pipeline Stages
+## Security Scanning Tools
 
-```typescript
-import { SecurityPipeline, AnalysisStage, PipelineContext } from 'slop-auditor';
+The scanner integrates with these security tools when available:
 
-// Create custom analysis stage
-class CustomSecurityStage implements AnalysisStage {
-  name = 'custom-check';
-  description = 'My custom security check';
+| Tool | Purpose | Install |
+|------|---------|---------|
+| **gitleaks** | Secrets detection | `winget install gitleaks` |
+| **trivy** | Vulnerability scanning | `winget install trivy` |
+| **semgrep** | SAST analysis | `pip install semgrep` |
+| **npm audit** | NPM vulnerabilities | Built into npm |
 
-  analyze(ctx: PipelineContext): void {
-    // Access input data
-    const { change_event } = ctx.input;
+Falls back to regex patterns if tools aren't installed.
 
-    // Add findings
-    if (someCondition) {
-      ctx.events.push({
-        event_type: 'finding_raised',
-        target: 'self',
-        payload: {
-          severity: 'high',
-          claim: 'Custom security issue detected',
-          attack_path: ['Step 1', 'Step 2'],
-          affected_assets: ['asset1'],
-          evidence_refs: [{ type: 'diff', pointer: 'file.ts' }],
-          assurance_break: ['integrity'],
-          confidence: 0.9
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
+## AWS Scanning
 
-    // Add assumptions/uncertainties
-    ctx.assumptions.push('Assuming X is configured correctly');
-    ctx.uncertainties.push('Cannot verify Y without manual review');
-  }
-}
+Scans for security misconfigurations:
 
-// Use custom pipeline
-const pipeline = new SecurityPipeline();
-pipeline.addStage(new CustomSecurityStage());
+- **IAM**: Overly permissive policies, unused credentials, MFA status
+- **S3**: Public buckets, missing encryption, insecure ACLs
+- **EC2**: Open security groups, public IPs, unencrypted volumes
+- **Lambda**: Overly permissive roles, exposed environment variables
+- **RDS**: Public accessibility, encryption status, backup config
 
-const result = await pipeline.execute(input);
+## Docker Deployment
+
+```bash
+# Build and run with Docker Compose
+docker-compose up -d
+
+# Or build manually
+docker build -t slop-auditor .
+docker run -p 3000:3000 -p 3001:3001 -p 8080:8080 slop-auditor
+
+# With AWS credentials
+docker run -p 3000:3000 -p 3001:3001 -p 8080:8080 \
+  -e AWS_ACCESS_KEY_ID=xxx \
+  -e AWS_SECRET_ACCESS_KEY=xxx \
+  -e AWS_DEFAULT_REGION=us-east-1 \
+  slop-auditor
 ```
-
-## API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/info` | GET | Server information |
-| `/tools` | GET | List available tools |
-| `/tools` | POST | Execute a tool (audit) |
-| `/memory` | GET | List or retrieve audit logs |
-| `/memory` | POST | Store data (internal use) |
-
-## Input Schema
-
-```typescript
-interface AuditorInput {
-  change_event: {
-    id: string;
-    type: 'pull_request' | 'deploy' | 'infra_change';
-    environment: 'dev' | 'staging' | 'prod';
-    repo: string;
-    commit: string;
-    files_changed: string[];
-    diff: string;
-  };
-  evidence_bundle: {
-    sbom?: string;
-    vuln_scan?: string;
-    sast_results?: string;
-    iac_scan?: string;
-    provenance?: string;
-    runtime_delta?: string;
-  };
-  policy_context: {
-    critical_assets: string[];
-    risk_tolerance: 'low' | 'medium' | 'high';
-  };
-}
-```
-
-## Output Schema
-
-```typescript
-interface AuditorOutput {
-  agent_id: string;          // 'exploit-reviewer'
-  agent_state: AgentState;   // 'idle' | 'analyzing' | 'conflict' | 'escalated' | 'blocked'
-  events: AuditEvent[];
-  meta: {
-    assumptions: string[];
-    uncertainties: string[];
-  };
-}
-
-interface AuditEvent {
-  event_type: 'analysis_started' | 'finding_raised' | 'conflict_detected' | 'escalation_triggered';
-  target: string;
-  payload: {
-    severity: 'low' | 'medium' | 'high' | 'critical';
-    claim: string;
-    attack_path: string[];
-    affected_assets: string[];
-    evidence_refs: Array<{ type: string; pointer: string }>;
-    assurance_break: Array<'integrity' | 'access_control' | 'isolation' | 'auditability'>;
-    confidence: number;  // 0.0 - 1.0
-  };
-  timestamp: string;  // ISO8601
-}
-```
-
-## Built-in Security Checks
-
-1. **Secrets Detection** - Detects hardcoded API keys, passwords, tokens, private keys
-2. **Vulnerability Scan** - Parses vulnerability scan results for critical/high findings
-3. **Critical Asset Monitor** - Alerts when critical asset paths are modified
-4. **Infrastructure Change** - Flags IaC/Terraform changes for review
-5. **Production Deploy Guard** - Warns about direct production deployments
 
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SLOP_PORT` | 3000 | SLOP server port |
-| `SLOP_BUS_URL` | - | External SLOP bus URL (optional) |
+| `SLOP_PORT` | 3000 | SLOP HTTP server port |
+| `WS_PORT` | 3001 | WebSocket server port |
 | `VISUALIZER_PORT` | 8080 | 3D visualizer web server port |
-| `SLOP_URL` | http://127.0.0.1:3000 | CLI target server URL |
+| `SLOP_BUS_URL` | - | External SLOP bus URL (optional) |
+| `AWS_DEFAULT_REGION` | us-east-1 | AWS region for scanning |
 
 ## 3D Visualizer Features
 
 The web-based 3D control plane provides:
 
-- Real-time agent state visualization (idle, analyzing, conflict, escalated, blocked)
+- Real-time agent state visualization
 - Interactive Three.js scene with orbit controls
-- Finding markers positioned around the agent
-- Quick-action presets for common scenarios
-- Audit history browser
-- Custom audit submission form
-- Live polling of SLOP server state
+- Module management (add/remove/configure)
+- Audit history browser with click-to-view details
+- Settings panel for AWS/Slack/Discord configuration
+- Live WebSocket updates (no polling delay)
+- Quick-action presets for testing
 
 ## Development
 
 ```bash
+# Install dependencies
+npm install
+
+# Build TypeScript
+npm run build
+
 # Run in development mode
 npm run dev
 
 # Run both server and visualizer
 npm run full
 
-# Build TypeScript
-npm run build
-
 # Run tests
 npm test
 ```
 
+## Publishing
+
+```bash
+# npm
+npm login
+npm publish --access public
+
+# Docker Hub
+docker build -t yourusername/slop-auditor .
+docker push yourusername/slop-auditor
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing`)
+5. Open a Pull Request
+
 ## License
 
 MIT
+
+## Links
+
+- [GitHub Repository](https://github.com/jjJohnP/SlopAuditor)
+- [npm Package](https://www.npmjs.com/package/@slop/auditor)
+- [Issue Tracker](https://github.com/jjJohnP/SlopAuditor/issues)

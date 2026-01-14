@@ -28,3 +28,13 @@ coverage/
 # Test repos (cloned for scanning)
 test-repos/
 *-results.json
+
+# Local database
+.slop-auditor/
+
+# Python build artifacts
+python/dist/
+python/build/
+python/*.egg-info/
+__pycache__/
+*.pyc

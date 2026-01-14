@@ -1,9 +1,20 @@
 {
-  "name": "slop-auditor",
-  "version": "0.1.0",
-  "description": "Slop orchestration framework with security auditor pipeline",
+  "name": "@slop/auditor",
+  "version": "0.2.0",
+  "description": "Security auditor with 3D visualization - SLOP protocol compatible. Scan code repos and AWS infrastructure for security issues.",
   "type": "module",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "slop-auditor": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "visualizer",
+    "schemas",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
@@ -11,15 +22,60 @@
     "visualizer": "tsx src/serve-visualizer.ts",
     "cli": "tsx src/cli.ts",
     "full": "concurrently \"npm start\" \"npm run visualizer\"",
-    "test": "node --test dist/**/*.test.js"
+    "test": "node --test dist/**/*.test.js",
+    "prepublishOnly": "npm run build",
+    "clean": "rm -rf dist"
   },
+  "keywords": [
+    "security",
+    "auditor",
+    "scanner",
+    "slop",
+    "3d-visualizer",
+    "secrets",
+    "vulnerability",
+    "sast",
+    "gitleaks",
+    "trivy",
+    "semgrep",
+    "aws",
+    "devsecops",
+    "appsec",
+    "ci-cd"
+  ],
+  "author": "jjJohnP",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jjJohnP/SlopAuditor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jjJohnP/SlopAuditor/issues"
+  },
+  "homepage": "https://github.com/jjJohnP/SlopAuditor#readme",
   "dependencies": {
+    "@aws-sdk/client-ec2": "^3.968.0",
+    "@aws-sdk/client-iam": "^3.968.0",
+    "@aws-sdk/client-lambda": "^3.968.0",
+    "@aws-sdk/client-rds": "^3.968.0",
+    "@aws-sdk/client-s3": "^3.968.0",
+    "@aws-sdk/credential-providers": "^3.968.0",
     "ajv": "^8.12.0",
-    "ajv-formats": "^2.1.1"
+    "ajv-formats": "^2.1.1",
+    "better-sqlite3": "^12.6.0",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.0.0",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.0.0",
     "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -344,6 +344,37 @@
 
     .form-group input::placeholder { color: #00ff8866; }
 
+    /* Settings Panel Styles */
+    .settings-row {
+      margin-bottom: 15px;
+    }
+
+    .settings-row label {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 6px;
+      color: #00ff88;
+    }
+
+    .settings-row input[type="checkbox"] {
+      margin-right: 8px;
+      accent-color: #00ff88;
+    }
+
+    .settings-tab {
+      padding: 8px 15px !important;
+      font-size: 11px !important;
+    }
+
+    .settings-tab.active {
+      background: #00ff88 !important;
+      color: #000 !important;
+    }
+
+    .settings-panel {
+      padding: 10px 0;
+    }
+
     .module-toggle {
       display: flex;
       align-items: center;
@@ -588,6 +619,126 @@
         <p style="color: #666; font-size: 11px;">No findings yet. Run an audit to detect issues.</p>
       </div>
     </div>
+
+    <!-- Settings Panel -->
+    <div class="panel">
+      <div class="panel-title">Settings <span id="settingsStatus" style="color: #666; font-size: 10px;"></span></div>
+      <button class="btn secondary" style="width: 100%;" onclick="openSettingsModal()">Configure Integrations</button>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3>Integration Settings</h3>
+        <button class="modal-close" onclick="closeSettingsModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+        <!-- Tabs -->
+        <div style="display: flex; gap: 5px; margin-bottom: 15px; border-bottom: 1px solid #00ff8844; padding-bottom: 10px;">
+          <button class="btn secondary settings-tab active" data-tab="aws" onclick="switchSettingsTab('aws')">AWS</button>
+          <button class="btn secondary settings-tab" data-tab="slack" onclick="switchSettingsTab('slack')">Slack</button>
+          <button class="btn secondary settings-tab" data-tab="discord" onclick="switchSettingsTab('discord')">Discord</button>
+          <button class="btn secondary settings-tab" data-tab="webhook" onclick="switchSettingsTab('webhook')">Webhook</button>
+        </div>
+
+        <!-- AWS Settings -->
+        <div id="settings-aws" class="settings-panel">
+          <div class="settings-row">
+            <label>
+              <input type="checkbox" id="aws-enabled" onchange="markSettingsDirty()">
+              Enable AWS Scanning
+            </label>
+          </div>
+          <div class="settings-row">
+            <label>AWS Region:</label>
+            <select id="aws-region" style="width: 100%; padding: 8px; background: rgba(0,20,10,0.8); border: 1px solid #00ff88; color: #00ff88;" onchange="markSettingsDirty()">
+              <option value="us-east-1">us-east-1 (N. Virginia)</option>
+              <option value="us-east-2">us-east-2 (Ohio)</option>
+              <option value="us-west-1">us-west-1 (N. California)</option>
+              <option value="us-west-2">us-west-2 (Oregon)</option>
+              <option value="eu-west-1">eu-west-1 (Ireland)</option>
+              <option value="eu-central-1">eu-central-1 (Frankfurt)</option>
+              <option value="ap-southeast-1">ap-southeast-1 (Singapore)</option>
+              <option value="ap-northeast-1">ap-northeast-1 (Tokyo)</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <label>AWS Profile (optional):</label>
+            <input type="text" id="aws-profile" placeholder="default" style="width: 100%; padding: 8px; background: rgba(0,20,10,0.8); border: 1px solid #00ff88; color: #00ff88;" onchange="markSettingsDirty()">
+          </div>
+          <div class="settings-row">
+            <label>Services to Scan:</label>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 5px;">
+              <label><input type="checkbox" id="aws-iam" checked onchange="markSettingsDirty()"> IAM</label>
+              <label><input type="checkbox" id="aws-s3" checked onchange="markSettingsDirty()"> S3</label>
+              <label><input type="checkbox" id="aws-ec2" checked onchange="markSettingsDirty()"> EC2</label>
+              <label><input type="checkbox" id="aws-lambda" checked onchange="markSettingsDirty()"> Lambda</label>
+              <label><input type="checkbox" id="aws-rds" checked onchange="markSettingsDirty()"> RDS</label>
+            </div>
+          </div>
+          <button class="btn" style="margin-top: 15px;" onclick="runAWSScan()">Run AWS Scan Now</button>
+        </div>
+
+        <!-- Slack Settings -->
+        <div id="settings-slack" class="settings-panel" style="display: none;">
+          <div class="settings-row">
+            <label>
+              <input type="checkbox" id="slack-enabled" onchange="markSettingsDirty()">
+              Enable Slack Notifications
+            </label>
+          </div>
+          <div class="settings-row">
+            <label>Webhook URL:</label>
+            <input type="text" id="slack-webhook" placeholder="https://hooks.slack.com/services/..." style="width: 100%; padding: 8px; background: rgba(0,20,10,0.8); border: 1px solid #00ff88; color: #00ff88;" onchange="markSettingsDirty()">
+          </div>
+          <div class="settings-row">
+            <label>Channel (optional):</label>
+            <input type="text" id="slack-channel" placeholder="#security-alerts" style="width: 100%; padding: 8px; background: rgba(0,20,10,0.8); border: 1px solid #00ff88; color: #00ff88;" onchange="markSettingsDirty()">
+          </div>
+          <button class="btn secondary" style="margin-top: 15px;" onclick="testNotification('slack')">Test Slack</button>
+        </div>
+
+        <!-- Discord Settings -->
+        <div id="settings-discord" class="settings-panel" style="display: none;">
+          <div class="settings-row">
+            <label>
+              <input type="checkbox" id="discord-enabled" onchange="markSettingsDirty()">
+              Enable Discord Notifications
+            </label>
+          </div>
+          <div class="settings-row">
+            <label>Webhook URL:</label>
+            <input type="text" id="discord-webhook" placeholder="https://discord.com/api/webhooks/..." style="width: 100%; padding: 8px; background: rgba(0,20,10,0.8); border: 1px solid #00ff88; color: #00ff88;" onchange="markSettingsDirty()">
+          </div>
+          <button class="btn secondary" style="margin-top: 15px;" onclick="testNotification('discord')">Test Discord</button>
+        </div>
+
+        <!-- Custom Webhook Settings -->
+        <div id="settings-webhook" class="settings-panel" style="display: none;">
+          <div class="settings-row">
+            <label>
+              <input type="checkbox" id="webhook-enabled" onchange="markSettingsDirty()">
+              Enable Custom Webhook
+            </label>
+          </div>
+          <div class="settings-row">
+            <label>Webhook URL:</label>
+            <input type="text" id="webhook-url" placeholder="https://your-server.com/webhook" style="width: 100%; padding: 8px; background: rgba(0,20,10,0.8); border: 1px solid #00ff88; color: #00ff88;" onchange="markSettingsDirty()">
+          </div>
+          <div class="settings-row">
+            <label>Custom Headers (JSON, optional):</label>
+            <textarea id="webhook-headers" placeholder='{"Authorization": "Bearer token"}' style="width: 100%; height: 60px; padding: 8px; background: rgba(0,20,10,0.8); border: 1px solid #00ff88; color: #00ff88; font-family: inherit; resize: vertical;" onchange="markSettingsDirty()"></textarea>
+          </div>
+          <button class="btn secondary" style="margin-top: 15px;" onclick="testNotification('webhook')">Test Webhook</button>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px; padding-top: 15px; border-top: 1px solid #00ff8844;">
+        <button class="btn secondary" onclick="closeSettingsModal()">Cancel</button>
+        <button class="btn" id="saveSettingsBtn" onclick="saveSettings()" disabled>Save Settings</button>
+      </div>
+    </div>
   </div>
 
   <!-- Stats Bar -->
@@ -654,7 +805,10 @@
 
     // ========== CONFIGURATION ==========
     const SLOP_URL = 'http://127.0.0.1:3000';
-    const POLL_INTERVAL = 2000;
+    const WS_URL = 'ws://127.0.0.1:3001';
+    const POLL_INTERVAL = 5000; // Slower polling as WebSocket handles real-time
+    let wsConnected = false;
+    let ws = null;
 
     // Module definitions - what systems exist in the control plane
     // Base modules - always restored after clearing the map
@@ -1311,6 +1465,92 @@
       }
     }
 
+    // ========== WEBSOCKET CONNECTION ==========
+    function connectWebSocket() {
+      if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+        return; // Already connected or connecting
+      }
+
+      try {
+        ws = new WebSocket(WS_URL);
+
+        ws.onopen = () => {
+          console.log('[WS] Connected to WebSocket server');
+          wsConnected = true;
+          document.getElementById('statusDot').classList.remove('error');
+          document.getElementById('statusText').textContent = 'Connected (WS)';
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            handleWebSocketMessage(msg);
+          } catch (err) {
+            console.error('[WS] Invalid message:', err);
+          }
+        };
+
+        ws.onclose = () => {
+          console.log('[WS] Disconnected');
+          wsConnected = false;
+          // Retry connection after 3 seconds
+          setTimeout(connectWebSocket, 3000);
+        };
+
+        ws.onerror = (err) => {
+          console.error('[WS] Error:', err);
+          wsConnected = false;
+        };
+      } catch (err) {
+        console.error('[WS] Failed to connect:', err);
+        wsConnected = false;
+      }
+    }
+
+    function handleWebSocketMessage(msg) {
+      switch (msg.type) {
+        case 'audit_started':
+          console.log('[WS] Audit started:', msg.payload);
+          showToast(`Scanning: ${msg.payload.target}`, false);
+          showLoading(true);
+          break;
+
+        case 'audit_completed':
+          console.log('[WS] Audit completed:', msg.payload);
+          showLoading(false);
+          // Refresh the audit history to show the new audit
+          refreshAuditHistory();
+          // Update stats display
+          if (msg.payload.summary) {
+            const s = msg.payload.summary;
+            const total = s.critical + s.high + s.medium + s.low;
+            showToast(`Scan complete: ${total} findings`, s.critical > 0 || s.high > 0);
+          }
+          break;
+
+        case 'finding':
+          console.log('[WS] Finding:', msg.payload);
+          // Could add real-time finding display here
+          break;
+
+        case 'settings_changed':
+          console.log('[WS] Settings changed:', msg.payload);
+          showToast('Settings updated', false);
+          break;
+
+        case 'ping':
+          // Respond to ping
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'pong', payload: { time: Date.now() }, timestamp: new Date().toISOString() }));
+          }
+          break;
+
+        case 'status':
+          console.log('[WS] Status:', msg.payload);
+          break;
+      }
+    }
+
     async function runPreset(presetName) {
       showLoading(true);
 
@@ -1474,6 +1714,203 @@
       selectedAuditKey = null;
       document.getElementById('selectedAuditPanel').style.display = 'none';
       refreshAuditHistory();
+    }
+
+    // ========== SETTINGS FUNCTIONS ==========
+    let settingsDirty = false;
+
+    async function openSettingsModal() {
+      document.getElementById('settingsModal').style.display = 'flex';
+      settingsDirty = false;
+      document.getElementById('saveSettingsBtn').disabled = true;
+
+      // Load current settings from server
+      try {
+        const res = await fetch(`${SLOP_URL}/settings`);
+        if (res.ok) {
+          const data = await res.json();
+          populateSettings(data.settings);
+        }
+      } catch (err) {
+        console.error('Failed to load settings:', err);
+        showToast('Failed to load settings', true);
+      }
+    }
+
+    function closeSettingsModal() {
+      document.getElementById('settingsModal').style.display = 'none';
+    }
+
+    function switchSettingsTab(tab) {
+      // Update tab buttons
+      document.querySelectorAll('.settings-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tab);
+      });
+
+      // Show/hide panels
+      document.querySelectorAll('.settings-panel').forEach(panel => {
+        panel.style.display = 'none';
+      });
+      document.getElementById(`settings-${tab}`).style.display = 'block';
+    }
+
+    function markSettingsDirty() {
+      settingsDirty = true;
+      document.getElementById('saveSettingsBtn').disabled = false;
+    }
+
+    function populateSettings(settings) {
+      // AWS settings
+      document.getElementById('aws-enabled').checked = settings['aws.enabled'] === 'true';
+      document.getElementById('aws-region').value = settings['aws.region'] || 'us-east-1';
+      document.getElementById('aws-profile').value = settings['aws.profile'] || '';
+      document.getElementById('aws-iam').checked = settings['aws.services.iam'] !== 'false';
+      document.getElementById('aws-s3').checked = settings['aws.services.s3'] !== 'false';
+      document.getElementById('aws-ec2').checked = settings['aws.services.ec2'] !== 'false';
+      document.getElementById('aws-lambda').checked = settings['aws.services.lambda'] !== 'false';
+      document.getElementById('aws-rds').checked = settings['aws.services.rds'] !== 'false';
+
+      // Slack settings
+      document.getElementById('slack-enabled').checked = settings['notifications.slack.enabled'] === 'true';
+      document.getElementById('slack-webhook').value = settings['notifications.slack.webhookUrl'] || '';
+      document.getElementById('slack-channel').value = settings['notifications.slack.channel'] || '';
+
+      // Discord settings
+      document.getElementById('discord-enabled').checked = settings['notifications.discord.enabled'] === 'true';
+      document.getElementById('discord-webhook').value = settings['notifications.discord.webhookUrl'] || '';
+
+      // Webhook settings
+      document.getElementById('webhook-enabled').checked = settings['notifications.webhook.enabled'] === 'true';
+      document.getElementById('webhook-url').value = settings['notifications.webhook.url'] || '';
+      document.getElementById('webhook-headers').value = settings['notifications.webhook.headers'] || '';
+
+      // Update status indicator
+      const enabledCount = [
+        settings['aws.enabled'] === 'true',
+        settings['notifications.slack.enabled'] === 'true',
+        settings['notifications.discord.enabled'] === 'true',
+        settings['notifications.webhook.enabled'] === 'true'
+      ].filter(Boolean).length;
+
+      document.getElementById('settingsStatus').textContent = enabledCount > 0 ? `(${enabledCount} active)` : '';
+    }
+
+    async function saveSettings() {
+      const settings = {
+        // AWS settings
+        'aws.enabled': document.getElementById('aws-enabled').checked.toString(),
+        'aws.region': document.getElementById('aws-region').value,
+        'aws.profile': document.getElementById('aws-profile').value,
+        'aws.services.iam': document.getElementById('aws-iam').checked.toString(),
+        'aws.services.s3': document.getElementById('aws-s3').checked.toString(),
+        'aws.services.ec2': document.getElementById('aws-ec2').checked.toString(),
+        'aws.services.lambda': document.getElementById('aws-lambda').checked.toString(),
+        'aws.services.rds': document.getElementById('aws-rds').checked.toString(),
+
+        // Slack settings
+        'notifications.slack.enabled': document.getElementById('slack-enabled').checked.toString(),
+        'notifications.slack.webhookUrl': document.getElementById('slack-webhook').value,
+        'notifications.slack.channel': document.getElementById('slack-channel').value,
+
+        // Discord settings
+        'notifications.discord.enabled': document.getElementById('discord-enabled').checked.toString(),
+        'notifications.discord.webhookUrl': document.getElementById('discord-webhook').value,
+
+        // Webhook settings
+        'notifications.webhook.enabled': document.getElementById('webhook-enabled').checked.toString(),
+        'notifications.webhook.url': document.getElementById('webhook-url').value,
+        'notifications.webhook.headers': document.getElementById('webhook-headers').value
+      };
+
+      try {
+        const res = await fetch(`${SLOP_URL}/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ settings })
+        });
+
+        if (res.ok) {
+          showToast('Settings saved');
+          settingsDirty = false;
+          document.getElementById('saveSettingsBtn').disabled = true;
+          closeSettingsModal();
+
+          // Update status indicator
+          const enabledCount = [
+            settings['aws.enabled'] === 'true',
+            settings['notifications.slack.enabled'] === 'true',
+            settings['notifications.discord.enabled'] === 'true',
+            settings['notifications.webhook.enabled'] === 'true'
+          ].filter(Boolean).length;
+          document.getElementById('settingsStatus').textContent = enabledCount > 0 ? `(${enabledCount} active)` : '';
+        } else {
+          showToast('Failed to save settings', true);
+        }
+      } catch (err) {
+        console.error('Failed to save settings:', err);
+        showToast('Failed to save settings', true);
+      }
+    }
+
+    async function testNotification(channel) {
+      showLoading(true);
+      try {
+        const res = await fetch(`${SLOP_URL}/notifications/test`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          showToast(`${channel} test sent successfully`);
+        } else {
+          showToast(`${channel} test failed: ${data.error}`, true);
+        }
+      } catch (err) {
+        showToast(`${channel} test failed`, true);
+      }
+      showLoading(false);
+    }
+
+    async function runAWSScan() {
+      // First save the settings
+      await saveSettings();
+
+      showLoading(true);
+      try {
+        // Get AWS settings
+        const region = document.getElementById('aws-region').value;
+        const services = [];
+        if (document.getElementById('aws-iam').checked) services.push('iam');
+        if (document.getElementById('aws-s3').checked) services.push('s3');
+        if (document.getElementById('aws-ec2').checked) services.push('ec2');
+        if (document.getElementById('aws-lambda').checked) services.push('lambda');
+        if (document.getElementById('aws-rds').checked) services.push('rds');
+
+        const res = await fetch(`${SLOP_URL}/tools`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tool: 'scan-aws',
+            arguments: { region, services }
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          showToast('AWS scan started');
+          closeSettingsModal();
+          // Refresh audit history to show results
+          setTimeout(refreshAuditHistory, 2000);
+        } else {
+          showToast('AWS scan failed', true);
+        }
+      } catch (err) {
+        console.error('AWS scan error:', err);
+        showToast('AWS scan failed', true);
+      }
+      showLoading(false);
     }
 
     // ========== UI HELPERS ==========
@@ -2447,11 +2884,19 @@
     window.refreshAuditHistory = refreshAuditHistory;
     window.selectAudit = selectAudit;
     window.clearSelectedAudit = clearSelectedAudit;
+    window.openSettingsModal = openSettingsModal;
+    window.closeSettingsModal = closeSettingsModal;
+    window.switchSettingsTab = switchSettingsTab;
+    window.markSettingsDirty = markSettingsDirty;
+    window.saveSettings = saveSettings;
+    window.testNotification = testNotification;
+    window.runAWSScan = runAWSScan;
 
     initScene();
     animate();
     pollSlop();
     refreshAuditHistory();
+    connectWebSocket(); // Connect to WebSocket for real-time updates
     setInterval(pollSlop, POLL_INTERVAL);
     setInterval(refreshAuditHistory, POLL_INTERVAL * 2); // Refresh history less frequently
 
@@ -2459,6 +2904,7 @@
     window.addEventListener('click', onMouseClick);
 
     console.log('SLOP Control Plane initialized');
+    console.log('WebSocket: ws://127.0.0.1:3001 (real-time updates)');
     console.log('Enter a directory path and click "Scan Directory" to map your project.');
     console.log('Use "+ Add" to scan multiple projects and switch between them.');
   </script>
